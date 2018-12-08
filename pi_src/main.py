@@ -9,6 +9,7 @@ import argparse
 import imutils
 import time
 import cv2
+from buckler_telenet import BucklerTelnet
 
 
 # Setup PiCamera
@@ -40,6 +41,11 @@ last_cup_time = 0
 IMG_WIDTH = 600
 IMG_HEIGHT = 500
 
+# Set up RTT Buckler Comm
+bucklerRTT = BucklerTelnet()
+# Reset grabber and lift actuators
+bucklerRTT.resetLift()
+bucklerRTT.resetGrabber()
 
 # Set cup RTT global command states being done
 # this is so we do not send multiple commands over RTT at the same time.
@@ -48,6 +54,12 @@ RTT_CENTERING_STATE = False
 RTT_SETTING_DISTANCE_STATE = False
 RTT_PICKING_UP_STATE = False
 
+# Set up cup distance constants
+FOCAL_LENGTH = 0.304  # in cm
+CUP_WIDTH = 8.128  # in cm
+def distance_to_camera(knownWidth, focalLength, perWidth):
+    # compute and return the distance from the maker to the camera
+    return (knownWidth * focalLength) / perWidth
 
 def detect_cup(frame, min_cup_radius=10):
     """
@@ -57,7 +69,7 @@ def detect_cup(frame, min_cup_radius=10):
     Returns:
         - cup_found (boolean) : True if cup_found, else False
         - cup_center (tuple(int, int)) : pixel coordinates (u, v) of cup's center using blob.
-        - cup_radius (int) : radius of the cup blob.
+        - cup_radius (int) : radius of the cup blob in pixels.
     """
     # Convert bgr image frame to hsv color space
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -96,6 +108,7 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     """
     # Get deviation from the image center width.
     deviation = u - (IMG_WIDTH // 2)
+    # target = 
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
@@ -122,11 +135,15 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         return True
     elif cup_distance < min_cup_dist:
         # Move backward
-        # Send RTT 
+        # Send RTT
+        print("Sending reverse command")
+        bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.5)
         return False
     else:
         # Move forward
         # Send RTT
+        print("Sending forward command")
+        bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.5))
         return False
 
 def pickup_cup():
@@ -134,8 +151,14 @@ def pickup_cup():
     Assumes the cup is within pickup range.
     Sends the pick sequence command over RTT, if has not been sent already.
     """
-    pass
+    bucklerRTT.rotateGrabber()
+    bucklerRTT.liftCup()
+    bucklerRTT.resetLift()
+    bucklerRTT.resetGrabber()
 
+def avoid_obstacle():
+    bucklerRTT.reverseDist(0.5)
+    bucklerRTT.turnLeftAngle(45)
 
 def main():
     """
@@ -163,7 +186,6 @@ def main():
     """
 
     i = 0  # Delete in production
-
 
     # Continuously stream camera frames.
     for frame in camera.capture_continuous(rawCapture, format="bgr",  use_video_port=True):
@@ -195,7 +217,6 @@ def main():
                 max_cup_dist = 20 # in cm
                 distance_corrected = correct_distance(cup_distance, min_cup_dist, max_cup_dist)
                 if distance_corrected:
-                    # TODO: Send pickup command sequence
                     pickup_cup()
                 else:
                     # Robot is currently correcting its distance from cup over RTT
@@ -206,7 +227,14 @@ def main():
                 pass
 
         else:
-            # TODO: fill in continue spiral path code.
+            # Try Obstacle detection sequence using ultrasonic sensor distance
+            obstacle_distance = ultraSonicSensor.get_distance()
+            obstacle_threshold = 75  # in cm
+            if obstacle_distance < obstacle_threshold:
+                # Run obstacle detection sequence
+                pass
+
+            # TODO: Continue spiral movement path
             pass
 
         if i > 100:  # Uncomment in production
