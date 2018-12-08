@@ -9,7 +9,8 @@ class UltraSonicSensor(object):
         pass        
 
     def setup(self, trigger_pin = 7, echo_pin = 11):
-        # Sets up the UltrasonicSensor GPIO pins and board.
+        # Sets up the UltrasonicSensor GPIO pins and board
+        GPIO.cleanup()
         GPIO.setmode(GPIO.BOARD)
         self.PIN_TRIGGER = trigger_pin
         self.PIN_ECHO = echo_pin
@@ -22,13 +23,13 @@ class UltraSonicSensor(object):
 
     def get_distance(self):
         print("Calculating distance")
-        GPIO.output(PIN_TRIGGER, GPIO.HIGH)
+        GPIO.output(self.PIN_TRIGGER, GPIO.HIGH)
         time.sleep(0.00001)
-        GPIO.output(PIN_TRIGGER, GPIO.LOW)
+        GPIO.output(self.PIN_TRIGGER, GPIO.LOW)
 
-        while GPIO.input(PIN_ECHO) == 0:
+        while GPIO.input(self.PIN_ECHO) == 0:
             pulse_start_time = time.time()
-        while GPIO.input(PIN_ECHO) == 1:
+        while GPIO.input(self.PIN_ECHO) == 1:
             pulse_end_time = time.time()
 
         pulse_duration = pulse_end_time - pulse_start_time
