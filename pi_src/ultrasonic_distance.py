@@ -6,10 +6,10 @@ import time
 class UltraSonicSensor(object):
 
     def __init__(self):
-        # Sets up the UltrasonicSensor GPIO pins and board.
         pass        
 
     def setup(trigger_pin = 7, echo_pin = 11):
+        # Sets up the UltrasonicSensor GPIO pins and board.
         GPIO.setmode(GPIO.BOARD)
         self.PIN_TRIGGER = trigger_pin
         self.PIN_ECHO = echo_pin

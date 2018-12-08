@@ -5,7 +5,6 @@ from picamera.array import PiRGBArray
 from picamera import PiCamera
 from ultrasonic_distance import UltraSonicSensor
 import numpy as np
-import argparse
 import imutils
 import time
 import cv2
@@ -47,19 +46,15 @@ bucklerRTT = BucklerTelnet()
 bucklerRTT.resetLift()
 bucklerRTT.resetGrabber()
 
-# Set cup RTT global command states being done
-# this is so we do not send multiple commands over RTT at the same time.
-# we will check for RTT responses and update these states when the command is complete.
-RTT_CENTERING_STATE = False
-RTT_SETTING_DISTANCE_STATE = False
-RTT_PICKING_UP_STATE = False
-
-# Set up cup distance constants
+# Set up PiCam Constants
+PIXEL_WIDTH = 0.000112  # in cm
 FOCAL_LENGTH = 0.304  # in cm
+# Set up cup distance constants
 CUP_WIDTH = 8.128  # in cm
-def distance_to_camera(knownWidth, focalLength, perWidth):
+
+def distance_to_camera(knownWidth, focalLength, radius):
     # compute and return the distance from the maker to the camera
-    return (knownWidth * focalLength) / perWidth
+    return (knownWidth * focalLength) / radius
 
 def detect_cup(frame, min_cup_radius=10):
     """
@@ -108,19 +103,21 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     """
     # Get deviation from the image center width.
     deviation = u - (IMG_WIDTH // 2)
-    # target = 
+    
+    # Calculate fuzzy target angle
+    Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
+    target_angle = np.rad2deg(np.arctan2(abs(deviation) * PIXEL_WIDTH / Z))
+
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
     elif deviation > 0:  # Cup is too far to the right of the camera/robot system
-        # TODO: send RTT move right command if a command has not already been sent and not yet received.
-        # (calculate angle to send based on magnitude of deviation and cup_width)
         print("Sending RTT Right")
+        bucklerRTT.turnRightAngle(target_angle)
         return False
     else:  # Cup is too far to the left of the camera/robot system
-        # TODO: send RTT move left command if a command has not already been sent and not yet received.
-        # (calculate angle to send based on magnitude of deviation and cup_width)
         print("Sending RTT Left")
+        bucklerRTT.turnLeftAngle(target_angle)
         return False
 
 def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
@@ -149,7 +146,7 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
 def pickup_cup():
     """
     Assumes the cup is within pickup range.
-    Sends the pick sequence command over RTT, if has not been sent already.
+    Sends the pick sequence command over Buckler RTT.
     """
     bucklerRTT.rotateGrabber()
     bucklerRTT.liftCup()
@@ -157,7 +154,10 @@ def pickup_cup():
     bucklerRTT.resetGrabber()
 
 def avoid_obstacle():
-    bucklerRTT.reverseDist(0.5)
+    """
+    Avoid Obstacle movement sequence
+    """
+    bucklerRTT.reverseDist(0.25)
     bucklerRTT.turnLeftAngle(45)
 
 def main():
@@ -189,8 +189,6 @@ def main():
 
     # Continuously stream camera frames.
     for frame in camera.capture_continuous(rawCapture, format="bgr",  use_video_port=True):
-        # TODO: Check for RTT Response and update current action states
-
         # Skip frame if too fast.
         if time.time() - last_update < time_per_frame:
             time.sleep(time_per_frame / 5)
@@ -232,10 +230,11 @@ def main():
             obstacle_threshold = 75  # in cm
             if obstacle_distance < obstacle_threshold:
                 # Run obstacle detection sequence
+                avoid_obstacle()
+            
+            else:
+                # TODO: Continue spiral movement path
                 pass
-
-            # TODO: Continue spiral movement path
-            pass
 
         if i > 100:  # Uncomment in production
             break
