@@ -59,6 +59,19 @@
 #include "buckler.h"
 
 
+#include <stdbool.h>
+#include <stdint.h>
+#include "nrf.h"
+#include "app_pwm.h"
+
+
+
+APP_PWM_INSTANCE(PWM1,0);                   // Create the instance "PWM1" using TIMER1.
+void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
+{
+    //printf("READY!\n");
+}
+
 #define OUTPUT_PIN BUCKLER_LED0
 
 static nrf_drv_pwm_t m_pwm0 = NRF_DRV_PWM_INSTANCE(0);
@@ -119,7 +132,7 @@ int main(void)
 {
 
     // Start clock for accurate frequencies
-    NRF_CLOCK->TASKS_HFCLKSTART = 1; 
+    /*NRF_CLOCK->TASKS_HFCLKSTART = 1; 
     // Wait for clock to start
     while(NRF_CLOCK->EVENTS_HFCLKSTARTED == 0) 
         ;
@@ -133,7 +146,24 @@ int main(void)
             nrf_delay_ms(10);
             pwm_update_duty_cycle(i);
         }
-    }
+    }*/
+    ret_code_t err_code;
+    /* 2-channel PWM, 200 Hz, output on DK LED pins. */
+    app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(10000L, BUCKLER_GROVE_D0);
+    nrf_gpio_pin_dir_set(BUCKLER_LED0, NRF_GPIO_PIN_DIR_OUTPUT);
+    nrf_gpio_pin_dir_set(BUCKLER_LED1, NRF_GPIO_PIN_DIR_OUTPUT);
+    nrf_gpio_pin_dir_set(BUCKLER_GROVE_D0, NRF_GPIO_PIN_DIR_OUTPUT);
+    /* Switch the polarity of the second channel. */
+    pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+    /* Initialize and enable PWM. */
+    err_code = app_pwm_init(&PWM1,&pwm1_cfg,pwm_ready_callback);
+    APP_ERROR_CHECK(err_code);
+    app_pwm_enable(&PWM1);
+            
+            /* Se the duty cycle - keep trying until PWM is ready. */
+    while(true)
+        while (app_pwm_channel_duty_set(&PWM1, 0, 15) == NRF_ERROR_BUSY);
+
 }
 
 

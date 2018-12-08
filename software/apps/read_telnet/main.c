@@ -30,12 +30,23 @@
 #include "kobukiUtilities.h"
 #include "display.h"
 #include "mpu9250.h"
+#include "nrf_drv_pwm.h"
+#include "app_util_platform.h"
+#include "bsp.h"
+#include "nrf_drv_clock.h"
+#include "virtual_timer.h"
 
 #define LOG_USES_RTT 1
 #define NRF_CLI_RTT_TERMINAL_ID 0
+#define SERVO1 BUCKLER_GROVE_A0
+#define SERVO2 BUCKLER_GROVE_A1
+#define SERVO3 BUCKLER_GROVE_D0
+#define SERVO4 BUCKLER_GROVE_D1
+#define LED BUCKLER_LED0
 
 
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
+
 
 
 typedef enum {
@@ -47,11 +58,19 @@ typedef enum {
   TURN_RIGHT_ANG,
   TURN_LEFT_ANG,
   REV_INF,
-  REV_DIST
+  REV_DIST,
+  ROTATE_GRABBER,
+  LIFT_CUP,
+  RESET_GRABBER,
+  RESET_LIFT
 } robot_state_t;
 
 int speed;
 int turnSpeed;
+uint32_t servo_pwm_1;
+uint32_t servo_pwm_2;
+uint32_t servo_pwm_3;
+uint32_t servo_pwm_4;
 
 static float measure_distance(uint16_t current_encoder, uint16_t previous_encoder){
   const float CONVERSION =  0.00008529;
@@ -77,6 +96,35 @@ static float measure_distance_rev(uint16_t current_encoder, uint16_t previous_en
   return ret;
 }
 
+void servo_pulse_1()
+{
+    nrf_gpio_pin_toggle(SERVO1);
+    nrf_delay_us(servo_pwm_1);
+    nrf_gpio_pin_toggle(SERVO1);
+}
+
+void servo_pulse_2()
+{
+    nrf_gpio_pin_toggle(SERVO2);
+    nrf_delay_us(servo_pwm_2);
+    nrf_gpio_pin_toggle(SERVO2);
+}
+
+void servo_pulse_3()
+{
+    nrf_gpio_pin_toggle(SERVO3);
+    nrf_delay_us(servo_pwm_3);
+    nrf_gpio_pin_toggle(SERVO3);
+}
+
+void servo_pulse_4()
+{
+    nrf_gpio_pin_toggle(SERVO4);
+    nrf_delay_us(servo_pwm_4);
+    nrf_gpio_pin_toggle(SERVO4);
+}
+
+
 int main(void)
 {
 
@@ -95,6 +143,11 @@ int main(void)
   nrf_gpio_pin_dir_set(23, NRF_GPIO_PIN_DIR_OUTPUT);
   nrf_gpio_pin_dir_set(24, NRF_GPIO_PIN_DIR_OUTPUT);
   nrf_gpio_pin_dir_set(25, NRF_GPIO_PIN_DIR_OUTPUT);
+
+  nrf_gpio_pin_dir_set(SERVO1, NRF_GPIO_PIN_DIR_OUTPUT);
+  nrf_gpio_pin_dir_set(SERVO2, NRF_GPIO_PIN_DIR_OUTPUT);
+  nrf_gpio_pin_dir_set(SERVO3, NRF_GPIO_PIN_DIR_OUTPUT);
+  nrf_gpio_pin_dir_set(SERVO4, NRF_GPIO_PIN_DIR_OUTPUT);
 
   // initialize display
   nrf_drv_spi_t spi_instance = NRF_DRV_SPI_INSTANCE(1);
@@ -134,19 +187,41 @@ int main(void)
   uint16_t enc_start;
   robot_state_t state = STOP;
 
+
+  // Don't forget to initialize your timer library
+  virtual_timer_init();
+  nrf_delay_ms(3000);
+
   // Initialize distances
   float dist;
   float angle;
 
+  bool grab_serv_set = false;
+  uint32_t servo_timer_id_1 = 0;
+  uint32_t servo_timer_id_2 = 0; 
+
+  bool lift_serv_set = false;
+  uint32_t servo_timer_id_3 = 0;
+  uint32_t servo_timer_id_4 = 0;
+
+
+
+  bool stopped = false;
+
+
   // loop forever
   char p_data[9];
+  //if (state == STOP)
+  //{
+    //printf("STOP\n");
+  //}
   while (1)
   {
-    kobukiSensorPoll(&sensors);
+    //printf("STOP\n");
+    //kobukiSensorPoll(&sensors);
     nrf_delay_ms(100);
     
     memset(p_data, 0, 9);
-
 
     size_t rcnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 8);
     if (rcnt > 0)
@@ -167,7 +242,8 @@ int main(void)
       }
       else if (strcmp(p_data, "driveInf") == 0)
       {
-        state = DRIVE_INF;
+        if (!stopped)
+          state = DRIVE_INF;
       }
       else if (strcmp(p_data, "stop") == 0)
       {
@@ -178,49 +254,109 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 3);
         sscanf(p_data, "%f", &dist);
-        state = DRIVE_DIST;
-        enc_start = sensors.leftWheelEncoder;
+        if (!stopped)
+        {
+          state = DRIVE_DIST;
+          enc_start = sensors.leftWheelEncoder;
+        }
       }
       else if (strcmp(p_data, "rightInf") == 0)
       {
-        state = TURN_RIGHT_INF;
+        if (!stopped)
+          state = TURN_RIGHT_INF;
       }
       else if (strcmp(p_data, "left Inf") == 0)
       {
-        state = TURN_LEFT_INF;
+        if (!stopped)
+          state = TURN_LEFT_INF;
       }
       else if (strcmp(p_data, "rightAng") == 0)
       {
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 4);
         sscanf(p_data, "%f", &angle);
-        state = TURN_RIGHT_ANG;
-        mpu9250_start_gyro_integration();
+        if (!stopped)
+        {
+          state = TURN_RIGHT_ANG;
+          mpu9250_start_gyro_integration();
+        }
       }
       else if (strcmp(p_data, "leftAngl") == 0)
       {
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 4);
         sscanf(p_data, "%f", &angle);
-        state = TURN_LEFT_ANG;
-        mpu9250_start_gyro_integration();
+        if (!stopped)
+        {
+          state = TURN_LEFT_ANG;
+          mpu9250_start_gyro_integration();
+        }
       }
       else if (strcmp(p_data, "reverInf") == 0)
       {
-        state = REV_INF;
+        if (!stopped)
+          state = REV_INF;
       }
       else if (strcmp(p_data, "reverDis") == 0)
       {
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 3);
         sscanf(p_data, "%f", &dist);
-        state = REV_DIST;
-        enc_start = sensors.leftWheelEncoder;
+        if (!stopped)
+        {
+          state = REV_DIST;
+          enc_start = sensors.leftWheelEncoder;
+        }
+      }
+      else if(strcmp(p_data, "grabserv") == 0)
+      {
+        if (grab_serv_set)
+        {
+          virtual_timer_cancel(servo_timer_id_1);
+          virtual_timer_cancel(servo_timer_id_2);
+          grab_serv_set = false;
+        } 
+        state = ROTATE_GRABBER;
+      }
+      else if(strcmp(p_data, "rst_grab") == 0)
+      {
+        if (grab_serv_set)
+        {
+          virtual_timer_cancel(servo_timer_id_1);
+          virtual_timer_cancel(servo_timer_id_2);
+          grab_serv_set = false;
+        }
+        state = RESET_GRABBER;
+      }
+      else if(strcmp(p_data, "liftserv") == 0)
+      {
+        if (lift_serv_set)
+        {
+          virtual_timer_cancel(servo_timer_id_3);
+          virtual_timer_cancel(servo_timer_id_4);
+          lift_serv_set = false;
+        }
+        state = LIFT_CUP;
+      }
+      else if(strcmp(p_data, "rst_lift") == 0)
+      {
+        if (lift_serv_set)
+        {
+          virtual_timer_cancel(servo_timer_id_3);
+          virtual_timer_cancel(servo_timer_id_4);
+          lift_serv_set = false;
+        }
+        state = RESET_LIFT;
       }
     }
     switch (state)
     {
       case DRIVE_INF: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "DRIVE_INF");
         display_write(buf, DISPLAY_LINE_0);
@@ -235,6 +371,11 @@ int main(void)
         break;
       }
       case DRIVE_DIST: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "DRIVE_DIST");
         display_write(buf, DISPLAY_LINE_0);
@@ -248,11 +389,17 @@ int main(void)
         }
         else
         {
+          printf("DONE");
           state = STOP;
         }
         break;
       }
       case TURN_RIGHT_INF: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "TURN_RIGHT_INF");
         display_write(buf, DISPLAY_LINE_0);
@@ -260,6 +407,11 @@ int main(void)
         break;
       }
       case TURN_LEFT_INF: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "TURN_LEFT_INF");
         display_write(buf, DISPLAY_LINE_0);
@@ -267,6 +419,11 @@ int main(void)
         break;
       }
       case TURN_RIGHT_ANG: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "TURN_RIGHT_ANG");
         display_write(buf, DISPLAY_LINE_0);
@@ -280,12 +437,18 @@ int main(void)
         }
         else
         {
+          printf("DONE");
           mpu9250_stop_gyro_integration();
           state = STOP;
         }
         break;
       }
       case TURN_LEFT_ANG: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "TURN_LEFT_ANG");
         display_write(buf, DISPLAY_LINE_0);
@@ -299,12 +462,18 @@ int main(void)
         }
         else
         {
+          printf("DONE");
           mpu9250_stop_gyro_integration();
           state = STOP;
         }
         break; 
       }
       case REV_INF: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "REV_INF");
         display_write(buf, DISPLAY_LINE_0);
@@ -312,6 +481,11 @@ int main(void)
         break;
       }
       case REV_DIST: {
+        if (is_button_pressed(&sensors)) {
+          printf("STOP");
+          stopped = !stopped;
+          state = STOP;
+        }
         char buf[16];
         snprintf(buf, 16, "REV_DIST");
         display_write(buf, DISPLAY_LINE_0);
@@ -325,9 +499,52 @@ int main(void)
         }
         else
         {
+          printf("DONE");
           state = STOP;
         }
         break; 
+      }
+      case ROTATE_GRABBER: {
+        if (!grab_serv_set)
+        {
+          servo_pwm_1 = 2500;
+          servo_pwm_2 = 500;
+          servo_timer_id_1 = virtual_timer_start_repeated(10000, servo_pulse_1);
+          servo_timer_id_2 = virtual_timer_start_repeated(10000, servo_pulse_2);
+          grab_serv_set = true;
+        }
+        //printf("DONE");
+        break;
+      }
+      case RESET_GRABBER: {
+        if(!grab_serv_set)
+        {
+          servo_pwm_1 = 500;
+          servo_pwm_2 = 2500;
+          servo_timer_id_1 = virtual_timer_start_repeated(10000, servo_pulse_1);
+          servo_timer_id_2 = virtual_timer_start_repeated(10000, servo_pulse_2);
+          grab_serv_set = true;
+        }
+      }
+      case LIFT_CUP: {
+        if(!lift_serv_set)
+        {
+          servo_pwm_3 = 2500;
+          servo_pwm_4 = 500;
+          servo_timer_id_3 = virtual_timer_start_repeated(10000, servo_pulse_3);
+          servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
+          lift_serv_set = true;
+        }
+      }
+      case RESET_LIFT: {
+        if (!lift_serv_set)
+        {
+          servo_pwm_3 = 500;
+          servo_pwm_4 = 2500;
+          servo_timer_id_3 = virtual_timer_start_repeated(10000, servo_pulse_3);
+          servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
+          lift_serv_set = true;
+        }
       }
     }
   }
