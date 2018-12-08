@@ -8,7 +8,7 @@ class UltraSonicSensor(object):
     def __init__(self):
         pass        
 
-    def setup(trigger_pin = 7, echo_pin = 11):
+    def setup(self, trigger_pin = 7, echo_pin = 11):
         # Sets up the UltrasonicSensor GPIO pins and board.
         GPIO.setmode(GPIO.BOARD)
         self.PIN_TRIGGER = trigger_pin
