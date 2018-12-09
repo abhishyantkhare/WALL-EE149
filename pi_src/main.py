@@ -111,9 +111,10 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #else:   # cup_width straddles the center
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
-    target_angle = 5
-    if cup_width > 30:
-        target_angle = 2
+    target_angle = 6
+    if cup_width > 35:
+        # Assume cup is centered (we do not have the turn resolution required)
+        deviation = center_threshold
     print("Deviation: ", deviation)
     print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
@@ -150,14 +151,14 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         # Send RTT
         print("Sending reverse command")
         if use_buckler_rtt:
-            bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.5)
+            bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.25)
         return False
     else:
         # Move forward
         # Send RTT
         print("Sending forward command")
         if use_buckler_rtt:
-            bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.5))
+            bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.25))
         return False
 
 def pickup_cup():
