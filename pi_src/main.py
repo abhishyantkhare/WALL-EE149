@@ -13,7 +13,7 @@ from buckler_telnet import BucklerTelnet
 
 
 # TODO: Change to True in production
-use_buckler_rtt = False
+use_buckler_rtt = True
 
 # Setup PiCamera
 print("[INFO] Setting up Camera...")
@@ -45,7 +45,7 @@ if use_buckler_rtt:
     # Set up RTT Buckler Comm
     bucklerRTT = BucklerTelnet()
     # Reset grabber and lift actuators
-    bucklerRTT.resetLift()
+    bucklerRTT.liftCup()
     bucklerRTT.resetGrabber()
 
 # Set up PiCam Constants
@@ -104,22 +104,27 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     """
     # Get deviation from the image center width.
     u, v = cup_center
-    if (u - cup_width) > (IMG_WIDTH // 2):  # on the right side of the center
-        deviation = u - cup_width - (IMG_WIDTH // 2)
-    elif (u + cup_width) < (IMG_WIDTH // 2):  # on the left side of the center
-        deviation = (IMG_WIDTH // 2) - (u + cup_width)
-    else:   # cup_width straddles the center
-        deviation = 0
-    # deviation = u - (IMG_WIDTH // 2)
+    #if (u - cup_width) > (IMG_WIDTH // 2):  # on the right side of the center
+    #    deviation = u - cup_width - (IMG_WIDTH // 2)
+    #elif (u + cup_width) < (IMG_WIDTH // 2):  # on the left side of the center
+    #    deviation = (IMG_WIDTH // 2) - (u + cup_width)
+    #else:   # cup_width straddles the center
+    #    deviation = 0
+    deviation = u - (IMG_WIDTH // 2)
+    target_angle = 5
+    if cup_width > 30:
+        target_angle = 2
     print("Deviation: ", deviation)
+    print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
-    Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
-    target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
+    # Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
+    # print("Camera distance: ", Z)
+    # target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
 
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
-    elif deviation > center_threshold:  # Cup is too far to the right of the camera/robot system
+    elif deviation > 0:  # Cup is too far to the right of the camera/robot system
         print("Sending RTT Right")
         if use_buckler_rtt:
             bucklerRTT.turnRightAngle(target_angle)
@@ -161,9 +166,9 @@ def pickup_cup():
     Sends the pick sequence command over Buckler RTT.
     """
     if use_buckler_rtt:
+        bucklerRTT.resetLift()
         bucklerRTT.rotateGrabber()
         bucklerRTT.liftCup()
-        bucklerRTT.resetLift()
         bucklerRTT.resetGrabber()
 
 def avoid_obstacle():
@@ -214,13 +219,14 @@ def main():
 
         # grab the frame from the stream and resize it to have a maximum width of 400 pixels
         lastUpdate = time.time()
-        frame = frame.array
+        # Flip the image vertically (if PiCam is upside down)
+        frame = cv2.flip(frame.array, 1)
         #grabbed, frame = camera.read()
         #cv2.imshow('image', np.array(frame, dtype=np.uint8))
         frame = imutils.resize(frame, width=IMG_WIDTH, height=IMG_HEIGHT)
 
         # Detect cup from frame
-        min_cup_width = 20  # defines a cup blob width in pixels
+        min_cup_width = 10  # defines a cup blob width in pixels
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
         print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
@@ -228,7 +234,7 @@ def main():
             # cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
             # cv2.waitKey(1) & 0xFF
             # Try to center the cup
-            max_cup_center_deviation = 10  # in pixels
+            max_cup_center_deviation = 30  # in pixels
             cup_centering_complete = center_cup(cup_center, cup_width, max_cup_center_deviation)
             if cup_centering_complete:
 
@@ -239,6 +245,7 @@ def main():
                 distance_corrected = correct_distance(cup_distance, min_cup_dist, max_cup_dist)
                 if distance_corrected:
                     pickup_cup()
+                    i = 0
                 else:
                     # Robot is currently correcting its distance from cup over RTT
                     pass
@@ -254,14 +261,15 @@ def main():
             if obstacle_distance < obstacle_threshold:
                 # Run obstacle detection sequence
                 avoid_obstacle()
+                i = 0
             else:
                 # TODO: Continue spiral movement path
-                pass
+                for x in range(i):
+                    bucklerRTT.driveDist(0.05)
+                bucklerRTT.turnRightAngle(5)
+                i += 1
 
         rawCapture.truncate(0)
-        if i > 100:  # Uncomment in production
-            break
-        i += 1
 
 
 # If there is an error in the script, cleanup objects.
