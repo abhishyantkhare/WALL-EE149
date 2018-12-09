@@ -125,6 +125,7 @@ void servo_pulse_4()
 }
 
 
+
 int main(void)
 {
 
@@ -184,7 +185,7 @@ int main(void)
 
   // configure initial state
   KobukiSensors_t sensors = {0};
-  uint16_t enc_start;
+  uint16_t enc_start = sensors.leftWheelEncoder;
   robot_state_t state = STOP;
 
 
@@ -203,6 +204,13 @@ int main(void)
   bool lift_serv_set = false;
   uint32_t servo_timer_id_3 = 0;
   uint32_t servo_timer_id_4 = 0;
+
+  char clear_buf[10];
+  size_t clear_cnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, clear_buf, 10);
+  while (clear_cnt > 0)
+  {
+    clear_cnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, clear_buf, 10);
+  }
 
 
 
@@ -254,10 +262,10 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 3);
         sscanf(p_data, "%f", &dist);
+        enc_start = sensors.leftWheelEncoder;
         if (!stopped)
         {
           state = DRIVE_DIST;
-          enc_start = sensors.leftWheelEncoder;
         }
       }
       else if (strcmp(p_data, "rightInf") == 0)
@@ -507,8 +515,8 @@ int main(void)
       case ROTATE_GRABBER: {
         if (!grab_serv_set)
         {
-          servo_pwm_1 = 2500;
-          servo_pwm_2 = 500;
+          servo_pwm_1 = 2425;
+          servo_pwm_2 = 575;
           servo_timer_id_1 = virtual_timer_start_repeated(10000, servo_pulse_1);
           servo_timer_id_2 = virtual_timer_start_repeated(10000, servo_pulse_2);
           grab_serv_set = true;
@@ -519,8 +527,8 @@ int main(void)
       case RESET_GRABBER: {
         if(!grab_serv_set)
         {
-          servo_pwm_1 = 500;
-          servo_pwm_2 = 2500;
+          servo_pwm_1 = 1500;
+          servo_pwm_2 = 1500;
           servo_timer_id_1 = virtual_timer_start_repeated(10000, servo_pulse_1);
           servo_timer_id_2 = virtual_timer_start_repeated(10000, servo_pulse_2);
           grab_serv_set = true;
@@ -529,8 +537,8 @@ int main(void)
       case LIFT_CUP: {
         if(!lift_serv_set)
         {
-          servo_pwm_3 = 2500;
-          servo_pwm_4 = 500;
+          servo_pwm_3 = 500;
+          servo_pwm_4 = 1500;
           servo_timer_id_3 = virtual_timer_start_repeated(10000, servo_pulse_3);
           servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
           lift_serv_set = true;
@@ -539,8 +547,8 @@ int main(void)
       case RESET_LIFT: {
         if (!lift_serv_set)
         {
-          servo_pwm_3 = 500;
-          servo_pwm_4 = 2500;
+          servo_pwm_3 = 1500;
+          servo_pwm_4 = 1500;
           servo_timer_id_3 = virtual_timer_start_repeated(10000, servo_pulse_3);
           servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
           lift_serv_set = true;
