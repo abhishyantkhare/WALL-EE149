@@ -132,7 +132,7 @@ class BucklerTelnet:
   
   def blockUntilDone(self):
     msg = self.telnet_conn.read_eager()
-    while !len(msg):
+    while not len(msg):
      msg = self.telnet_conn.read_eager() 
   
 
