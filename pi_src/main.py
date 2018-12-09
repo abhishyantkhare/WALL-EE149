@@ -12,6 +12,9 @@ import cv2
 from buckler_telnet import BucklerTelnet
 
 
+# TODO: Change to True in production
+use_buckler_rtt = False
+
 # Setup PiCamera
 print("[INFO] Setting up Camera...")
 #camera = cv2.VideoCapture(0)
@@ -38,6 +41,7 @@ last_cup_time = 0
 IMG_WIDTH = 600
 IMG_HEIGHT = 500
 
+if use_buckler_rtt:
 # Set up RTT Buckler Comm
 bucklerRTT = BucklerTelnet()
 # Reset grabber and lift actuators
