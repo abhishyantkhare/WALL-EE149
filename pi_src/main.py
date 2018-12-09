@@ -8,14 +8,15 @@ import numpy as np
 import imutils
 import time
 import cv2
-from buckler_telenet import BucklerTelnet
+from buckler_telnet import BucklerTelnet
 
 
 # Setup PiCamera
 print("[INFO] Setting up Camera...")
+#camera = cv2.VideoCapture(0)
 camera = PiCamera()
 rawCapture = PiRGBArray(camera)
-time.sleep(3.0)
+time.sleep(1.0)
 fps = FPS().start()
 print("[INFO] Camera Setup complete.")
 
@@ -23,13 +24,9 @@ print("[INFO] Camera Setup complete.")
 ultraSonicSensor = UltraSonicSensor()
 ultraSonicSensor.setup(7, 11)
 
-# Experimental values
-RED_LOWER = (0, 65 * 255 // 100, 15 * 255 // 100)
-RED_UPPER = (15 * 2, 80 * 255 // 100, 35 * 255 // 100)
-
-# Set up queue in memory of previous center points
-BUFFER_SIZE = 64
-pts = deque(maxlen=BUFFER_SIZE)
+# PS: (0-360, 0-100, 0-100) -> CV2: (0-180, 0-255, 0-255)
+RED_LOWER = (353 // 2, 68 * 255 // 100, 35 * 255 // 100)
+RED_UPPER = (360 // 2, 85 * 255 // 100, 75 * 255 // 100)
 
 # Set image sampling frequency
 time_per_frame = 1 / 20
@@ -85,8 +82,7 @@ def detect_cup(frame, min_cup_radius=10):
         last_ball_time = time.time()
         M = cv2.moments(c)
         center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-        print(center)
-        # cv2.circle(frame, (int(u), int(v)), int(radius), (0, 255, 255), 2)
+        cv2.circle(frame, (int(u), int(v)), int(radius), (0, 255, 255), 2)
     return center is not None, center, radius
 
 
@@ -102,11 +98,12 @@ def center_cup(cup_center, cup_width, center_threshold=10):
         - centered (boolean) : returns True if the cup has been centered.
     """
     # Get deviation from the image center width.
+    u, v = cup_center
     deviation = u - (IMG_WIDTH // 2)
     
     # Calculate fuzzy target angle
     Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
-    target_angle = np.rad2deg(np.arctan2(abs(deviation) * PIXEL_WIDTH / Z))
+    target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
 
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
@@ -157,7 +154,9 @@ def avoid_obstacle():
     """
     Avoid Obstacle movement sequence
     """
+    print("Avoiding obstacle")
     bucklerRTT.reverseDist(0.25)
+    print("Avoid turn")
     bucklerRTT.turnLeftAngle(45)
 
 def main():
@@ -188,6 +187,7 @@ def main():
     i = 0  # Delete in production
 
     # Continuously stream camera frames.
+    #while True:
     for frame in camera.capture_continuous(rawCapture, format="bgr",  use_video_port=True):
         # Skip frame if too fast.
         if time.time() - last_update < time_per_frame:
@@ -197,13 +197,18 @@ def main():
         # grab the frame from the stream and resize it to have a maximum width of 400 pixels
         lastUpdate = time.time()
         frame = frame.array
+        #grabbed, frame = camera.read()
+        #cv2.imshow('image', np.array(frame, dtype=np.uint8))
         frame = imutils.resize(frame, width=IMG_WIDTH, height=IMG_HEIGHT)
 
         # Detect cup from frame
         min_cup_width = 10  # defines a cup blob width in pixels
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
-        
+        print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
+            # Visualize the cup frame
+            cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
+            cv2.waitKey(1) & 0xFF
             # Try to center the cup
             max_cup_center_deviation = 10  # in pixels
             cup_centering_complete = center_cup(cup_center, cup_width, max_cup_center_deviation)
@@ -231,11 +236,11 @@ def main():
             if obstacle_distance < obstacle_threshold:
                 # Run obstacle detection sequence
                 avoid_obstacle()
-            
             else:
                 # TODO: Continue spiral movement path
                 pass
 
+        rawCapture.truncate(0)
         if i > 100:  # Uncomment in production
             break
         i += 1
@@ -244,7 +249,8 @@ def main():
 # If there is an error in the script, cleanup objects.
 try:
     main()
-finally:
+except KeyboardInterrupt:
+    print("Cleaning up.")
     camera.release()
     cv2.destroyAllWindows()
     ultraSonicSensor.destroy()
