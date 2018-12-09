@@ -1,3 +1,4 @@
+
 # import the necessary packages
 from imutils.video import VideoStream
 from imutils.video import FPS
@@ -99,8 +100,14 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     """
     # Get deviation from the image center width.
     u, v = cup_center
-    deviation = u - (IMG_WIDTH // 2)
-    
+    if (u - cup_width) > (IMG_WIDTH // 2):  # on the right side of the center
+        deviation = u - cup_width - (IMG_WIDTH // 2)
+    elif (u + cup_width) < (IMG_WIDTH // 2):  # on the left side of the center
+        deviation = (IMG_WIDTH // 2) - (u + cup_width)
+    else:   # cup_width straddles the center
+        deviation = 0
+    # deviation = u - (IMG_WIDTH // 2)
+    print("Deviation: ", deviation)
     # Calculate fuzzy target angle
     Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
     target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
@@ -108,7 +115,7 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
-    elif deviation > 0:  # Cup is too far to the right of the camera/robot system
+    elif deviation > center_threshold:  # Cup is too far to the right of the camera/robot system
         print("Sending RTT Right")
         bucklerRTT.turnRightAngle(target_angle)
         return False
@@ -202,13 +209,13 @@ def main():
         frame = imutils.resize(frame, width=IMG_WIDTH, height=IMG_HEIGHT)
 
         # Detect cup from frame
-        min_cup_width = 10  # defines a cup blob width in pixels
+        min_cup_width = 20  # defines a cup blob width in pixels
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
         print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
             # Visualize the cup frame
-            cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
-            cv2.waitKey(1) & 0xFF
+            # cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
+            # cv2.waitKey(1) & 0xFF
             # Try to center the cup
             max_cup_center_deviation = 10  # in pixels
             cup_centering_complete = center_cup(cup_center, cup_width, max_cup_center_deviation)
@@ -216,8 +223,8 @@ def main():
 
                 # Try to update the robot's distance from the cup.
                 cup_distance = ultraSonicSensor.get_distance()
-                min_cup_dist = 10  # in cm
-                max_cup_dist = 20 # in cm
+                min_cup_dist = 18  # in cm
+                max_cup_dist = 33  # in cm
                 distance_corrected = correct_distance(cup_distance, min_cup_dist, max_cup_dist)
                 if distance_corrected:
                     pickup_cup()
