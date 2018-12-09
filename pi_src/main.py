@@ -42,11 +42,11 @@ IMG_WIDTH = 600
 IMG_HEIGHT = 500
 
 if use_buckler_rtt:
-# Set up RTT Buckler Comm
-bucklerRTT = BucklerTelnet()
-# Reset grabber and lift actuators
-bucklerRTT.resetLift()
-bucklerRTT.resetGrabber()
+    # Set up RTT Buckler Comm
+    bucklerRTT = BucklerTelnet()
+    # Reset grabber and lift actuators
+    bucklerRTT.resetLift()
+    bucklerRTT.resetGrabber()
 
 # Set up PiCam Constants
 PIXEL_WIDTH = 0.000112  # in cm
@@ -121,11 +121,13 @@ def center_cup(cup_center, cup_width, center_threshold=10):
         return True
     elif deviation > center_threshold:  # Cup is too far to the right of the camera/robot system
         print("Sending RTT Right")
-        bucklerRTT.turnRightAngle(target_angle)
+        if use_buckler_rtt:
+            bucklerRTT.turnRightAngle(target_angle)
         return False
     else:  # Cup is too far to the left of the camera/robot system
         print("Sending RTT Left")
-        bucklerRTT.turnLeftAngle(target_angle)
+        if use_buckler_rtt:
+            bucklerRTT.turnLeftAngle(target_angle)
         return False
 
 def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
@@ -142,13 +144,15 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         # Move backward
         # Send RTT
         print("Sending reverse command")
-        bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.5)
+        if use_buckler_rtt:
+            bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.5)
         return False
     else:
         # Move forward
         # Send RTT
         print("Sending forward command")
-        bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.5))
+        if use_buckler_rtt:
+            bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.5))
         return False
 
 def pickup_cup():
@@ -156,19 +160,22 @@ def pickup_cup():
     Assumes the cup is within pickup range.
     Sends the pick sequence command over Buckler RTT.
     """
-    bucklerRTT.rotateGrabber()
-    bucklerRTT.liftCup()
-    bucklerRTT.resetLift()
-    bucklerRTT.resetGrabber()
+    if use_buckler_rtt:
+        bucklerRTT.rotateGrabber()
+        bucklerRTT.liftCup()
+        bucklerRTT.resetLift()
+        bucklerRTT.resetGrabber()
 
 def avoid_obstacle():
     """
     Avoid Obstacle movement sequence
     """
     print("Avoiding obstacle")
-    bucklerRTT.reverseDist(0.25)
+    if use_buckler_rtt:
+        bucklerRTT.reverseDist(0.3)
     print("Avoid turn")
-    bucklerRTT.turnLeftAngle(45)
+    if use_buckler_rtt:
+        bucklerRTT.turnLeftAngle(45)
 
 def main():
     """
