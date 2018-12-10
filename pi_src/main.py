@@ -44,6 +44,7 @@ IMG_HEIGHT = 500
 if use_buckler_rtt:
     # Set up RTT Buckler Comm
     bucklerRTT = BucklerTelnet()
+    time.sleep(1.0)
     # Reset grabber and lift actuators
     bucklerRTT.liftCup()
     bucklerRTT.resetGrabber()
@@ -112,9 +113,10 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
     target_angle = 6
-    if cup_width > 35:
+    if cup_width >= 28:
         # Assume cup is centered (we do not have the turn resolution required)
         deviation = center_threshold
+        target_angle = 0
     print("Deviation: ", deviation)
     print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
@@ -151,14 +153,14 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         # Send RTT
         print("Sending reverse command")
         if use_buckler_rtt:
-            bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.25)
+            bucklerRTT.reverseDist(min(((min_cup_dist + max_cup_dist) / 2 - cup_distance) / 100, 0.25))
         return False
     else:
         # Move forward
         # Send RTT
-        print("Sending forward command")
+        print("Sending forward command", min(cup_distance - (min_cup_dist + max_cup_dist) / 2 / 100, 0.25))
         if use_buckler_rtt:
-            bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.25))
+            bucklerRTT.driveDist(min((cup_distance - (min_cup_dist + max_cup_dist) / 2) / 100, 0.25))
         return False
 
 def pickup_cup():
@@ -167,6 +169,7 @@ def pickup_cup():
     Sends the pick sequence command over Buckler RTT.
     """
     if use_buckler_rtt:
+        print("Sending Pickup Sequence")
         bucklerRTT.resetLift()
         bucklerRTT.rotateGrabber()
         bucklerRTT.liftCup()
@@ -265,8 +268,10 @@ def main():
                 i = 0
             else:
                 # TODO: Continue spiral movement path
-                for x in range(i):
-                    bucklerRTT.driveDist(0.05)
+                print("Sending spiral command", i + 1)
+                for x in range(i + 1):
+                    print("Sending spiral command")
+                    bucklerRTT.driveDist(0.1)
                 bucklerRTT.turnRightAngle(5)
                 i += 1
 
