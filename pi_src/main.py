@@ -1,3 +1,4 @@
+
 # import the necessary packages
 from imutils.video import VideoStream
 from imutils.video import FPS
@@ -8,14 +9,18 @@ import numpy as np
 import imutils
 import time
 import cv2
-from buckler_telenet import BucklerTelnet
+from buckler_telnet import BucklerTelnet
 
+
+# TODO: Change to True in production
+use_buckler_rtt = True
 
 # Setup PiCamera
 print("[INFO] Setting up Camera...")
+#camera = cv2.VideoCapture(0)
 camera = PiCamera()
 rawCapture = PiRGBArray(camera)
-time.sleep(3.0)
+time.sleep(1.0)
 fps = FPS().start()
 print("[INFO] Camera Setup complete.")
 
@@ -23,13 +28,9 @@ print("[INFO] Camera Setup complete.")
 ultraSonicSensor = UltraSonicSensor()
 ultraSonicSensor.setup(7, 11)
 
-# Experimental values
-RED_LOWER = (0, 65 * 255 // 100, 15 * 255 // 100)
-RED_UPPER = (15 * 2, 80 * 255 // 100, 35 * 255 // 100)
-
-# Set up queue in memory of previous center points
-BUFFER_SIZE = 64
-pts = deque(maxlen=BUFFER_SIZE)
+# PS: (0-360, 0-100, 0-100) -> CV2: (0-180, 0-255, 0-255)
+RED_LOWER = (353 // 2, 68 * 255 // 100, 35 * 255 // 100)
+RED_UPPER = (360 // 2, 85 * 255 // 100, 75 * 255 // 100)
 
 # Set image sampling frequency
 time_per_frame = 1 / 20
@@ -40,11 +41,12 @@ last_cup_time = 0
 IMG_WIDTH = 600
 IMG_HEIGHT = 500
 
-# Set up RTT Buckler Comm
-bucklerRTT = BucklerTelnet()
-# Reset grabber and lift actuators
-bucklerRTT.resetLift()
-bucklerRTT.resetGrabber()
+if use_buckler_rtt:
+    # Set up RTT Buckler Comm
+    bucklerRTT = BucklerTelnet()
+    # Reset grabber and lift actuators
+    bucklerRTT.liftCup()
+    bucklerRTT.resetGrabber()
 
 # Set up PiCam Constants
 PIXEL_WIDTH = 0.000112  # in cm
@@ -85,8 +87,7 @@ def detect_cup(frame, min_cup_radius=10):
         last_ball_time = time.time()
         M = cv2.moments(c)
         center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-        print(center)
-        # cv2.circle(frame, (int(u), int(v)), int(radius), (0, 255, 255), 2)
+        cv2.circle(frame, (int(u), int(v)), int(radius), (0, 255, 255), 2)
     return center is not None, center, radius
 
 
@@ -102,22 +103,37 @@ def center_cup(cup_center, cup_width, center_threshold=10):
         - centered (boolean) : returns True if the cup has been centered.
     """
     # Get deviation from the image center width.
+    u, v = cup_center
+    #if (u - cup_width) > (IMG_WIDTH // 2):  # on the right side of the center
+    #    deviation = u - cup_width - (IMG_WIDTH // 2)
+    #elif (u + cup_width) < (IMG_WIDTH // 2):  # on the left side of the center
+    #    deviation = (IMG_WIDTH // 2) - (u + cup_width)
+    #else:   # cup_width straddles the center
+    #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
-    
+    target_angle = 6
+    if cup_width > 35:
+        # Assume cup is centered (we do not have the turn resolution required)
+        deviation = center_threshold
+    print("Deviation: ", deviation)
+    print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
-    Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
-    target_angle = np.rad2deg(np.arctan2(abs(deviation) * PIXEL_WIDTH / Z))
+    # Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
+    # print("Camera distance: ", Z)
+    # target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
 
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
     elif deviation > 0:  # Cup is too far to the right of the camera/robot system
         print("Sending RTT Right")
-        bucklerRTT.turnRightAngle(target_angle)
+        if use_buckler_rtt:
+            bucklerRTT.turnRightAngle(target_angle)
         return False
     else:  # Cup is too far to the left of the camera/robot system
         print("Sending RTT Left")
-        bucklerRTT.turnLeftAngle(target_angle)
+        if use_buckler_rtt:
+            bucklerRTT.turnLeftAngle(target_angle)
         return False
 
 def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
@@ -134,13 +150,15 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         # Move backward
         # Send RTT
         print("Sending reverse command")
-        bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.5)
+        if use_buckler_rtt:
+            bucklerRTT.reverseDist(min(int(min_cup_dist + max_cup_dist // 2) - cup_distance), 0.25)
         return False
     else:
         # Move forward
         # Send RTT
         print("Sending forward command")
-        bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.5))
+        if use_buckler_rtt:
+            bucklerRTT.driveDist(min(cup_distance - int(min_cup_dist + max_cup_dist // 2), 0.25))
         return False
 
 def pickup_cup():
@@ -148,17 +166,22 @@ def pickup_cup():
     Assumes the cup is within pickup range.
     Sends the pick sequence command over Buckler RTT.
     """
-    bucklerRTT.rotateGrabber()
-    bucklerRTT.liftCup()
-    bucklerRTT.resetLift()
-    bucklerRTT.resetGrabber()
+    if use_buckler_rtt:
+        bucklerRTT.resetLift()
+        bucklerRTT.rotateGrabber()
+        bucklerRTT.liftCup()
+        bucklerRTT.resetGrabber()
 
 def avoid_obstacle():
     """
     Avoid Obstacle movement sequence
     """
-    bucklerRTT.reverseDist(0.25)
-    bucklerRTT.turnLeftAngle(45)
+    print("Avoiding obstacle")
+    if use_buckler_rtt:
+        bucklerRTT.reverseDist(0.3)
+    print("Avoid turn")
+    if use_buckler_rtt:
+        bucklerRTT.turnLeftAngle(45)
 
 def main():
     """
@@ -188,6 +211,7 @@ def main():
     i = 0  # Delete in production
 
     # Continuously stream camera frames.
+    #while True:
     for frame in camera.capture_continuous(rawCapture, format="bgr",  use_video_port=True):
         # Skip frame if too fast.
         if time.time() - last_update < time_per_frame:
@@ -196,26 +220,33 @@ def main():
 
         # grab the frame from the stream and resize it to have a maximum width of 400 pixels
         lastUpdate = time.time()
-        frame = frame.array
+        # Flip the image vertically (if PiCam is upside down)
+        frame = cv2.flip(frame.array, 1)
+        #grabbed, frame = camera.read()
+        #cv2.imshow('image', np.array(frame, dtype=np.uint8))
         frame = imutils.resize(frame, width=IMG_WIDTH, height=IMG_HEIGHT)
 
         # Detect cup from frame
         min_cup_width = 10  # defines a cup blob width in pixels
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
-        
+        print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
+            # Visualize the cup frame
+            # cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
+            # cv2.waitKey(1) & 0xFF
             # Try to center the cup
-            max_cup_center_deviation = 10  # in pixels
+            max_cup_center_deviation = 30  # in pixels
             cup_centering_complete = center_cup(cup_center, cup_width, max_cup_center_deviation)
             if cup_centering_complete:
 
                 # Try to update the robot's distance from the cup.
                 cup_distance = ultraSonicSensor.get_distance()
-                min_cup_dist = 10  # in cm
-                max_cup_dist = 20 # in cm
+                min_cup_dist = 18  # in cm
+                max_cup_dist = 33  # in cm
                 distance_corrected = correct_distance(cup_distance, min_cup_dist, max_cup_dist)
                 if distance_corrected:
                     pickup_cup()
+                    i = 0
                 else:
                     # Robot is currently correcting its distance from cup over RTT
                     pass
@@ -231,20 +262,22 @@ def main():
             if obstacle_distance < obstacle_threshold:
                 # Run obstacle detection sequence
                 avoid_obstacle()
-            
+                i = 0
             else:
                 # TODO: Continue spiral movement path
-                pass
+                for x in range(i):
+                    bucklerRTT.driveDist(0.05)
+                bucklerRTT.turnRightAngle(5)
+                i += 1
 
-        if i > 100:  # Uncomment in production
-            break
-        i += 1
+        rawCapture.truncate(0)
 
 
 # If there is an error in the script, cleanup objects.
 try:
     main()
-finally:
+except KeyboardInterrupt:
+    print("Cleaning up.")
     camera.release()
     cv2.destroyAllWindows()
     ultraSonicSensor.destroy()
