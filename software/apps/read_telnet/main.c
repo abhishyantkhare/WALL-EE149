@@ -185,13 +185,13 @@ int main(void)
 
   // configure initial state
   KobukiSensors_t sensors = {0};
-  uint16_t enc_start = sensors.leftWheelEncoder;
+  uint16_t enc_start;
   robot_state_t state = STOP;
 
 
   // Don't forget to initialize your timer library
   virtual_timer_init();
-  nrf_delay_ms(3000);
+  //nrf_delay_ms(3000);
 
   // Initialize distances
   float dist;
@@ -205,12 +205,12 @@ int main(void)
   uint32_t servo_timer_id_3 = 0;
   uint32_t servo_timer_id_4 = 0;
 
-  char clear_buf[10];
+  /*char clear_buf[10];
   size_t clear_cnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, clear_buf, 10);
   while (clear_cnt > 0)
   {
     clear_cnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, clear_buf, 10);
-  }
+  }*/
 
 
 
@@ -226,10 +226,8 @@ int main(void)
   while (1)
   {
     //printf("STOP\n");
-    //kobukiSensorPoll(&sensors);
-    nrf_delay_ms(100);
-    
     memset(p_data, 0, 9);
+    kobukiDriveDirect(0,0);
 
     size_t rcnt = SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 8);
     if (rcnt > 0)
@@ -262,11 +260,10 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 3);
         sscanf(p_data, "%f", &dist);
+        memset(p_data, 0, 9);
+        state = DRIVE_DIST;
+        kobukiSensorPoll(&sensors);
         enc_start = sensors.leftWheelEncoder;
-        if (!stopped)
-        {
-          state = DRIVE_DIST;
-        }
       }
       else if (strcmp(p_data, "rightInf") == 0)
       {
@@ -283,6 +280,7 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 4);
         sscanf(p_data, "%f", &angle);
+        kobukiSensorPoll(&sensors);
         if (!stopped)
         {
           state = TURN_RIGHT_ANG;
@@ -294,6 +292,7 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 4);
         sscanf(p_data, "%f", &angle);
+        kobukiSensorPoll(&sensors);
         if (!stopped)
         {
           state = TURN_LEFT_ANG;
@@ -310,6 +309,7 @@ int main(void)
         memset(p_data, 0, 9);
         SEGGER_RTT_Read(NRF_CLI_RTT_TERMINAL_ID, p_data, 3);
         sscanf(p_data, "%f", &dist);
+        kobukiSensorPoll(&sensors);
         if (!stopped)
         {
           state = REV_DIST;
@@ -318,6 +318,7 @@ int main(void)
       }
       else if(strcmp(p_data, "grabserv") == 0)
       {
+       // memset(p_data, 0, 9);
         if (grab_serv_set)
         {
           virtual_timer_cancel(servo_timer_id_1);
@@ -328,6 +329,7 @@ int main(void)
       }
       else if(strcmp(p_data, "rst_grab") == 0)
       {
+       // memset(p_data, 0, 9);
         if (grab_serv_set)
         {
           virtual_timer_cancel(servo_timer_id_1);
@@ -338,6 +340,7 @@ int main(void)
       }
       else if(strcmp(p_data, "liftserv") == 0)
       {
+       // memset(p_data, 0, 9);
         if (lift_serv_set)
         {
           virtual_timer_cancel(servo_timer_id_3);
@@ -348,6 +351,7 @@ int main(void)
       }
       else if(strcmp(p_data, "rst_lift") == 0)
       {
+       // memset(p_data, 0, 9);
         if (lift_serv_set)
         {
           virtual_timer_cancel(servo_timer_id_3);
@@ -379,10 +383,12 @@ int main(void)
         break;
       }
       case DRIVE_DIST: {
+        kobukiSensorPoll(&sensors);
         if (is_button_pressed(&sensors)) {
           printf("STOP");
           stopped = !stopped;
           state = STOP;
+          break;
         }
         char buf[16];
         snprintf(buf, 16, "DRIVE_DIST");
@@ -391,13 +397,15 @@ int main(void)
         char buf2[16];
         snprintf(buf2, 16, "%f", travel_dist);
         display_write(buf2, DISPLAY_LINE_1);
-        if( travel_dist < dist)
+        if( travel_dist < .1)
         {
           kobukiDriveDirect(speed, speed);
         }
         else
         {
+          kobukiDriveDirect(0,0);
           printf("DONE");
+          enc_start = sensors.leftWheelEncoder;
           state = STOP;
         }
         break;
@@ -427,6 +435,7 @@ int main(void)
         break;
       }
       case TURN_RIGHT_ANG: {
+        kobukiSensorPoll(&sensors);
         if (is_button_pressed(&sensors)) {
           printf("STOP");
           stopped = !stopped;
@@ -445,6 +454,7 @@ int main(void)
         }
         else
         {
+          kobukiDriveDirect(0,0);
           printf("DONE");
           mpu9250_stop_gyro_integration();
           state = STOP;
@@ -452,6 +462,7 @@ int main(void)
         break;
       }
       case TURN_LEFT_ANG: {
+        kobukiSensorPoll(&sensors);
         if (is_button_pressed(&sensors)) {
           printf("STOP");
           stopped = !stopped;
@@ -470,6 +481,7 @@ int main(void)
         }
         else
         {
+          kobukiDriveDirect(0,0);
           printf("DONE");
           mpu9250_stop_gyro_integration();
           state = STOP;
@@ -489,6 +501,7 @@ int main(void)
         break;
       }
       case REV_DIST: {
+        kobukiSensorPoll(&sensors);
         if (is_button_pressed(&sensors)) {
           printf("STOP");
           stopped = !stopped;
@@ -507,12 +520,14 @@ int main(void)
         }
         else
         {
+          kobukiDriveDirect(0,0);
           printf("DONE");
           state = STOP;
         }
         break; 
       }
       case ROTATE_GRABBER: {
+        kobukiDriveDirect(0,0);
         if (!grab_serv_set)
         {
           servo_pwm_1 = 2425;
@@ -525,6 +540,7 @@ int main(void)
         break;
       }
       case RESET_GRABBER: {
+        kobukiDriveDirect(0,0);
         if(!grab_serv_set)
         {
           servo_pwm_1 = 1500;
@@ -533,8 +549,10 @@ int main(void)
           servo_timer_id_2 = virtual_timer_start_repeated(10000, servo_pulse_2);
           grab_serv_set = true;
         }
+        break;
       }
       case LIFT_CUP: {
+        kobukiDriveDirect(0,0);
         if(!lift_serv_set)
         {
           servo_pwm_3 = 500;
@@ -543,8 +561,10 @@ int main(void)
           servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
           lift_serv_set = true;
         }
+        break;
       }
       case RESET_LIFT: {
+        kobukiDriveDirect(0,0);
         if (!lift_serv_set)
         {
           servo_pwm_3 = 1500;
@@ -553,6 +573,7 @@ int main(void)
           servo_timer_id_4 = virtual_timer_start_repeated(10000, servo_pulse_4);
           lift_serv_set = true;
         }
+        break;
       }
     }
   }
