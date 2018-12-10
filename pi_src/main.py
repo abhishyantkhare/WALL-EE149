@@ -113,7 +113,7 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
     target_angle = 6
-    if cup_width >= 28:
+    if cup_width >= 25:
         # Assume cup is centered (we do not have the turn resolution required)
         deviation = center_threshold
         target_angle = 0
@@ -277,7 +277,7 @@ def main():
             # Try Obstacle detection sequence using ultrasonic sensor distance
             obstacle_distance = ultraSonicSensor.get_distance()
             obstacle_threshold = 50  # in cm
-            if obstacle_distance < obstacle_threshold and frame_since_found_cup > 2:
+            if obstacle_distance < obstacle_threshold and frame_since_found_cup > 5:
                 # Run obstacle detection sequence
                 avoid_obstacle()
                 i = 0
