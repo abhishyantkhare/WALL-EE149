@@ -81,6 +81,7 @@ class BucklerTelnet:
       return 
     self.telnet_conn.write(b"rightAng")
     self.telnet_conn.write(b"%.2f" % angle)
+    time.sleep(1)
     self.blockUntilDone()
   
   def turnLeftAngle(self, angle):
@@ -136,3 +137,18 @@ class BucklerTelnet:
      msg = self.telnet_conn.read_eager() 
   
 
+buckler = BucklerTelnet()
+time.sleep(3)
+#buckler.resetLift()
+#buckler.rotateGrabber()
+buckler.liftCup()
+#buckler.resetGrabber()
+#buckler.driveDist(.1)
+buckler.driveDist(.1)
+buckler.turnRightAngle(20)
+#buckler.driveDist(.1)
+#buckler.driveDist(.1)
+#buckler.driveDist(.1)
+#buckler.driveDist(.1)
+#buckler.driveDist(.1)
+#buckler.driveDist(.1)
