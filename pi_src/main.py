@@ -181,7 +181,16 @@ def avoid_obstacle():
         bucklerRTT.reverseDist(0.3)
     print("Avoid turn")
     if use_buckler_rtt:
-        bucklerRTT.turnLeftAngle(45)
+        bucklerRTT.turnLeftAngle(10)
+
+def scan(counter):
+    print("Attempting scan count: ", counter)
+    if counter < 72:
+        print("Scanning around")
+        if use_buckler_rtt:
+            bucklerRTT.turnRightAngle(5)
+    counter += 1
+    return counter
 
 def main():
     """
@@ -210,6 +219,9 @@ def main():
 
     i = 0  # Delete in production
 
+    scan_counter = 0  # Tracks number of times we have turned right in a scan, resets when cup is found.
+    frame_since_found_cup = 1000
+
     # Continuously stream camera frames.
     #while True:
     for frame in camera.capture_continuous(rawCapture, format="bgr",  use_video_port=True):
@@ -231,6 +243,8 @@ def main():
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
         print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
+            frame_since_found_cup = 0
+            scan_counter = 0
             # Visualize the cup frame
             # cv2.imshow("Cup", np.array(frame, dtype=np.uint8))
             # cv2.waitKey(1) & 0xFF
@@ -256,13 +270,17 @@ def main():
                 pass
 
         else:
+            frame_since_found_cup += 1
             # Try Obstacle detection sequence using ultrasonic sensor distance
             obstacle_distance = ultraSonicSensor.get_distance()
-            obstacle_threshold = 75  # in cm
-            if obstacle_distance < obstacle_threshold:
+            obstacle_threshold = 50  # in cm
+            if obstacle_distance < obstacle_threshold and frame_since_found_cup > 2:
                 # Run obstacle detection sequence
                 avoid_obstacle()
                 i = 0
+            elif scan_counter < 72:
+                # Run full rotation scan.
+                scan_counter = scan(scan_counter)
             else:
                 # TODO: Continue spiral movement path
                 for x in range(i):
