@@ -105,6 +105,8 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     """
     # Get deviation from the image center width.
     u, v = cup_center
+    # right_deviation = (u - cup_width) - (IMG_WIDTH / 2)
+    # left_deviation = (IMG_WIDTH / 2) - (u + cup_width)
     #if (u - cup_width) > (IMG_WIDTH // 2):  # on the right side of the center
     #    deviation = u - cup_width - (IMG_WIDTH // 2)
     #elif (u + cup_width) < (IMG_WIDTH // 2):  # on the left side of the center
@@ -112,9 +114,9 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #else:   # cup_width straddles the center
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
-    target_angle = 6
-    if cup_width >= 25:
-        # Assume cup is centered (we do not have the turn resolution required)
+    target_angle = 10
+    if cup_width >= 25 and abs(deviation) <= cup_width:
+        # Assume cup is centered
         deviation = center_threshold
         target_angle = 0
     print("Deviation: ", deviation)
@@ -181,17 +183,17 @@ def avoid_obstacle():
     """
     print("Avoiding obstacle")
     if use_buckler_rtt:
-        bucklerRTT.reverseDist(0.3)
+        bucklerRTT.reverseDist(0.15)
     print("Avoid turn")
     if use_buckler_rtt:
-        bucklerRTT.turnLeftAngle(10)
+        bucklerRTT.turnLeftAngle(15)
 
 def scan(counter):
     print("Attempting scan count: ", counter)
     if counter < 72:
         print("Scanning around")
         if use_buckler_rtt:
-            bucklerRTT.turnRightAngle(5)
+            bucklerRTT.turnRightAngle(8)
     counter += 1
     return counter
 
@@ -242,7 +244,7 @@ def main():
         frame = imutils.resize(frame, width=IMG_WIDTH, height=IMG_HEIGHT)
 
         # Detect cup from frame
-        min_cup_width = 10  # defines a cup blob width in pixels
+        min_cup_width = 3  # defines a cup blob width in pixels
         found_cup, cup_center, cup_width = detect_cup(frame, min_cup_width)
         print("[INFO] found cup status: ", found_cup, cup_center, cup_width)
         if found_cup:
@@ -290,7 +292,7 @@ def main():
                 for x in range(i + 1):
                     print("Sending spiral command")
                     bucklerRTT.driveDist(0.1)
-                bucklerRTT.turnRightAngle(5)
+                bucklerRTT.turnRightAngle(10)
                 i += 1
 
         rawCapture.truncate(0)
