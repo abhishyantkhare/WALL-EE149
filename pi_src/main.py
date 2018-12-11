@@ -123,9 +123,9 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     print("Deviation: ", deviation)
     print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
-    Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
-    print("Camera distance: ", Z)
-    target_angle = max(np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z)), target_angle)
+    # Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
+    # print("Camera distance: ", Z)
+    # target_angle = max(np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z)), target_angle)
     print("Target angle: ", target_angle)
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
@@ -280,7 +280,7 @@ def main():
             # Try Obstacle detection sequence using ultrasonic sensor distance
             obstacle_distance = ultraSonicSensor.get_distance()
             obstacle_threshold = 50  # in cm
-            if obstacle_distance < obstacle_threshold and frame_since_found_cup > 5:
+            if obstacle_distance < obstacle_threshold and frame_since_found_cup > 3:
                 # Run obstacle detection sequence
                 avoid_obstacle()
                 i = 0
