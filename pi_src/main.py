@@ -51,7 +51,8 @@ if use_buckler_rtt:
 
 # Set up PiCam Constants
 PIXEL_WIDTH = 0.000112  # in cm
-FOCAL_LENGTH = 0.304  # in cm
+# FOCAL_LENGTH = 0.304  # in cm
+FOCAL_LENGTH = 543 
 # Set up cup distance constants
 CUP_WIDTH = 8.128  # in cm
 
@@ -122,10 +123,10 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     print("Deviation: ", deviation)
     print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
-    # Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
-    # print("Camera distance: ", Z)
-    # target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
-
+    Z = distance_to_camera(CUP_WIDTH, FOCAL_LENGTH, cup_width)
+    print("Camera distance: ", Z)
+    target_angle = np.rad2deg(np.arctan(abs(deviation) * PIXEL_WIDTH / Z))
+    print("Target angle: ", target_angle)
     if abs(deviation) <= center_threshold:
         # cup is centered send no command.
         return True
