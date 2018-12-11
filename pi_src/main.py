@@ -138,7 +138,7 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     else:  # Cup is too far to the left of the camera/robot system
         print("Sending RTT Left")
         if use_buckler_rtt:
-            bucklerRTT.turnLeftAngle(target_angle)
+            bucklerRTT.turnLeftAngle(target_angle + 4)
         return False
 
 def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
