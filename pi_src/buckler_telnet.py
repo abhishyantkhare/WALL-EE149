@@ -1,3 +1,4 @@
+
 import telnetlib
 from subprocess import call
 import time
@@ -19,7 +20,7 @@ class BucklerTelnet:
       self.stop()
       return 
     self.telnet_conn.write(b"setSpeed")
-    self.telnet_conn.write(newSpeed)
+    self.telnet_conn.write(bytes("{}".format(newSpeed), "utf-8"))
   
   def setTurnSpeed(self, newSpeed):
     msg = self.telnet_conn.read_eager()

@@ -48,6 +48,7 @@ if use_buckler_rtt:
     # Reset grabber and lift actuators
     bucklerRTT.liftCup()
     bucklerRTT.resetGrabber()
+    bucklerRTT.setSpeed("50")
 
 # Set up PiCam Constants
 PIXEL_WIDTH = 0.000112  # in cm
@@ -115,11 +116,16 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #else:   # cup_width straddles the center
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
-    target_angle = 6
-    if cup_width >= 25 and abs(deviation) <= cup_width:
+    target_angle = 4
+    if cup_width >= 25 and abs(deviation) <= cup_width + center_threshold:
         # Assume cup is centered
         deviation = center_threshold
         target_angle = 0
+
+    cup_dist = ultraSonicSensor.get_distance()
+    if cup_dist > 60 and cup_dist < 2000:
+        print("Correcting distance before centering")
+        correct_distance(cup_dist, 15, 45)
     print("Deviation: ", deviation)
     print("Target Angle: ", target_angle)
     # Calculate fuzzy target angle
@@ -154,16 +160,16 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
     elif cup_distance < min_cup_dist:
         # Move backward
         # Send RTT
-        print("Sending reverse command")
+        print("Sending reverse command", (min_cup_dist + max_cup_dist) / 2 - cup_distance)
         if use_buckler_rtt:
-            bucklerRTT.reverseDist(min(((min_cup_dist + max_cup_dist) / 2 - cup_distance) / 100, 0.1))
+            bucklerRTT.reverseDist(max(min(((min_cup_dist + max_cup_dist) / 2 - cup_distance) / 100.0, 0.25), 0.12))
         return False
-    else:
+    elif cup_distance > max_cup_dist:
         # Move forward
         # Send RTT
-        print("Sending forward command", min(cup_distance - (min_cup_dist + max_cup_dist) / 2 / 100, 0.1))
+        print("Sending forward command", min(cup_distance - (min_cup_dist + max_cup_dist) / 2 / 100.0, 0.1))
         if use_buckler_rtt:
-            bucklerRTT.driveDist(min((cup_distance - (min_cup_dist + max_cup_dist) / 2) / 100, 0.1))
+            bucklerRTT.driveDist(max(min((cup_distance - (min_cup_dist + max_cup_dist) / 2) / 100.0, 0.25), 0.08))
         return False
 
 def pickup_cup():
@@ -261,8 +267,8 @@ def main():
 
                 # Try to update the robot's distance from the cup.
                 cup_distance = ultraSonicSensor.get_distance()
-                min_cup_dist = 18  # in cm
-                max_cup_dist = 33  # in cm
+                min_cup_dist = 20  # in cm
+                max_cup_dist = 31  # in cm
                 distance_corrected = correct_distance(cup_distance, min_cup_dist, max_cup_dist)
                 if distance_corrected:
                     pickup_cup()
