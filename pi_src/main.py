@@ -52,7 +52,7 @@ if use_buckler_rtt:
 # Set up PiCam Constants
 PIXEL_WIDTH = 0.000112  # in cm
 # FOCAL_LENGTH = 0.304  # in cm
-FOCAL_LENGTH = 543 
+FOCAL_LENGTH = 543  # could also be 3.04 / 0.0012 = 2533 or 4.01
 # Set up cup distance constants
 CUP_WIDTH = 8.128  # in cm
 
@@ -115,7 +115,7 @@ def center_cup(cup_center, cup_width, center_threshold=10):
     #else:   # cup_width straddles the center
     #    deviation = 0
     deviation = u - (IMG_WIDTH // 2)
-    target_angle = 10
+    target_angle = 6
     if cup_width >= 25 and abs(deviation) <= cup_width:
         # Assume cup is centered
         deviation = center_threshold
@@ -156,14 +156,14 @@ def correct_distance(cup_distance, min_cup_dist=10, max_cup_dist=20):
         # Send RTT
         print("Sending reverse command")
         if use_buckler_rtt:
-            bucklerRTT.reverseDist(min(((min_cup_dist + max_cup_dist) / 2 - cup_distance) / 100, 0.25))
+            bucklerRTT.reverseDist(min(((min_cup_dist + max_cup_dist) / 2 - cup_distance) / 100, 0.1))
         return False
     else:
         # Move forward
         # Send RTT
-        print("Sending forward command", min(cup_distance - (min_cup_dist + max_cup_dist) / 2 / 100, 0.25))
+        print("Sending forward command", min(cup_distance - (min_cup_dist + max_cup_dist) / 2 / 100, 0.1))
         if use_buckler_rtt:
-            bucklerRTT.driveDist(min((cup_distance - (min_cup_dist + max_cup_dist) / 2) / 100, 0.25))
+            bucklerRTT.driveDist(min((cup_distance - (min_cup_dist + max_cup_dist) / 2) / 100, 0.1))
         return False
 
 def pickup_cup():
